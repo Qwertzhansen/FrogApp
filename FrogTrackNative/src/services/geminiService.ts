@@ -1,84 +1,7 @@
-
-
-import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { LogEntry, ParsedLog, Profile, Meal } from '../types';
 import { calculateTDEE } from "../utils/fitnessCalculations";
 
-if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable not set");
-}
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-const logParsingSchema = {
-    type: Type.OBJECT,
-    properties: {
-        workouts: {
-            type: Type.ARRAY,
-            description: "List of workouts mentioned in the text.",
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    name: { type: Type.STRING, description: "Name of the workout, e.g., 'Morning Run', 'HIIT Session'." },
-                    duration: { type: Type.NUMBER, description: "Duration of the workout in minutes." },
-                    distance: { type: Type.NUMBER, description: "Distance covered in kilometers, if applicable." },
-                    calories: { type: Type.NUMBER, description: "Estimated total calories burned during the workout." },
-                    exercises: {
-                        type: Type.ARRAY,
-                        description: "Specific exercises performed during the workout.",
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                name: { type: Type.STRING, description: "Name of the exercise, e.g., 'Bench Press'." },
-                                sets: { type: Type.NUMBER, description: "Number of sets." },
-                                reps: { type: Type.NUMBER, description: "Number of repetitions per set." },
-                                weight: { type: Type.NUMBER, description: "Weight used in kilograms." },
-                            },
-                            required: ["name"]
-                        }
-                    }
-                },
-                required: ["name"]
-            }
-        },
-        meals: {
-            type: Type.ARRAY,
-            description: "List of meals or food items consumed.",
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    name: { type: Type.STRING, description: "Name of the meal or food, e.g., 'Scrambled Eggs'." },
-                    calories: { type: Type.NUMBER, description: "Estimated total calories for the meal." },
-                    protein: { type: Type.NUMBER, description: "Estimated protein in grams." },
-                    carbs: { type: Type.NUMBER, description: "Estimated carbohydrates in grams." },
-                    fat: { type: Type.NUMBER, description: "Estimated fat in grams." },
-                },
-                required: ["name", "calories"]
-            }
-        }
-    }
-};
-
-const mealParsingSchema = {
-    type: Type.OBJECT,
-    properties: {
-        meals: {
-            type: Type.ARRAY,
-            description: "List of meals or food items identified in the image.",
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    name: { type: Type.STRING, description: "Name of the meal or food, e.g., 'Scrambled Eggs'." },
-                    calories: { type: Type.NUMBER, description: "Estimated total calories for the meal." },
-                    protein: { type: Type.NUMBER, description: "Estimated protein in grams." },
-                    carbs: { type: Type.NUMBER, description: "Estimated carbohydrates in grams." },
-                    fat: { type: Type.NUMBER, description: "Estimated fat in grams." },
-                },
-                required: ["name", "calories"]
-            }
-        }
-    }
-};
+const API_URL = 'http://localhost:3000/api';
 
 export const parseNaturalLanguageLog = async (text: string, profile: Profile): Promise<ParsedLog> => {
     let userContext = "";
@@ -86,61 +9,28 @@ export const parseNaturalLanguageLog = async (text: string, profile: Profile): P
         const tdee = calculateTDEE(profile);
         userContext = ` The user is a ${profile.age}-year-old ${profile.gender} who is ${profile.height}cm tall and weighs ${profile.weight}kg. Their activity level is "${profile.activityLevel}". Their estimated daily maintenance calories are ${tdee} kcal. Use this information for more accurate calorie estimations for workouts.`
     }
-    
+
+    const prompt = `Parse the following user-provided text to identify and structure workout and meal information. For workouts, you MUST estimate the total calories burned based on the activity type, duration, and any other relevant details. For meals, parse nutritional information. Infer quantities and types where possible. For example, "30 min HIIT" is a workout. "3 scrambled eggs and 200g rice" is a meal.${userContext}\n\nTEXT: "${text}"`;
+
     try {
-        const response: GenerateContentResponse = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: `Parse the following user-provided text to identify and structure workout and meal information. For workouts, you MUST estimate the total calories burned based on the activity type, duration, and any other relevant details. For meals, parse nutritional information. Infer quantities and types where possible. For example, "30 min HIIT" is a workout. "3 scrambled eggs and 200g rice" is a meal.${userContext}\n\nTEXT: "${text}"`,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: logParsingSchema,
-            }
+        const response = await fetch(`${API_URL}/analyze-text`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ prompt }),
         });
-
-        const jsonText = response.text.trim();
-        return JSON.parse(jsonText) as ParsedLog;
-
+        const data = await response.json();
+        return JSON.parse(data.text) as ParsedLog;
     } catch (error) {
-        console.error("Error parsing natural language with Gemini:", error);
+        console.error("Error parsing natural language:", error);
         throw new Error("Failed to communicate with the AI service for parsing.");
     }
 };
 
 export const analyzeFoodImage = async (base64ImageData: string, userHint: string): Promise<ParsedLog> => {
-    const imagePart = {
-        inlineData: {
-            mimeType: 'image/jpeg',
-            data: base64ImageData,
-        },
-    };
-
-    const textPart = {
-        text: `Analyze the attached image of a meal. Identify all distinct food items and estimate their nutritional information (calories, protein, carbs, fat) for a reasonable serving size. Use the following user-provided hint if available: "${userHint}". If no food is clearly identifiable, return an empty array for meals. Structure the output as a list of meal items.`
-    };
-    
-    try {
-        const response: GenerateContentResponse = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: { parts: [textPart, imagePart] },
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: mealParsingSchema,
-            }
-        });
-
-        const jsonText = response.text.trim();
-        const parsedData = JSON.parse(jsonText) as ParsedLog;
-
-        if (!parsedData.meals) {
-            return { meals: [] };
-        }
-        
-        return parsedData;
-
-    } catch (error) {
-        console.error("Error analyzing food image with Gemini:", error);
-        throw new Error("Failed to communicate with the AI service for image analysis.");
-    }
+    // This will be implemented later, as it requires file system access to read the image
+    return Promise.resolve({ meals: [] });
 };
 
 export const generatePersonalizedTips = async (activities: LogEntry[], profile: Profile): Promise<string> => {
@@ -180,15 +70,17 @@ export const generatePersonalizedTips = async (activities: LogEntry[], profile: 
     `;
 
     try {
-        const response: GenerateContentResponse = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
+        const response = await fetch(`${API_URL}/get-tips`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ prompt }),
         });
-        
-        return response.text;
-
+        const data = await response.json();
+        return data.text;
     } catch (error) {
-        console.error("Error generating tips with Gemini:", error);
+        console.error("Error generating tips:", error);
         throw new Error("Failed to communicate with the AI service for tips.");
     }
 };

@@ -81,6 +81,41 @@ app.post('/api/activities', (req, res) => {
     });
 });
 
+import dotenv from 'dotenv';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+dotenv.config();
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+app.post('/api/analyze-text', async (req, res) => {
+    const { prompt } = req.body;
+    try {
+        const model = genAI.getGenerativeModel({ model: "gemini-pro"});
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = await response.text();
+        res.json({ text });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Failed to analyze text." });
+    }
+});
+
+app.post('/api/get-tips', async (req, res) => {
+    const { prompt } = req.body;
+    try {
+        const model = genAI.getGenerativeModel({ model: "gemini-pro"});
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = await response.text();
+        res.json({ text });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Failed to get tips." });
+    }
+});
+
 // We will add the /api/analyze endpoint later
 
 const PORT = process.env.PORT || 3000;
