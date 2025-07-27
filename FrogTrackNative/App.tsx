@@ -6,8 +6,10 @@ import DashboardScreen from './src/screens/DashboardScreen';
 import LogScreen from './src/screens/LogScreen';
 import CommunityScreen from './src/screens/CommunityScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import DashboardSelectionScreen from './src/screens/DashboardSelectionScreen';
 import { LogEntry, Activity, Meal, Workout, AppState, Profile } from './src/types';
-import { getProfile, getActivities, addActivity } from './src/services/supabaseService';
+import { getProfile, getActivities, addActivity, ensureDefaultDashboards, supabase } from './src/services/supabaseService';
+import { parseNaturalLanguageLog, generatePersonalizedTips } from './src/services/geminiService';
 
 const Tab = createBottomTabNavigator();
 
@@ -34,6 +36,8 @@ const App: React.FC = () => {
     isLoadingAI: false,
     error: null
   });
+
+  const [selectedDashboardConfig, setSelectedDashboardConfig] = useState<any>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -62,7 +66,8 @@ const App: React.FC = () => {
     if (newActivity) {
       setAppState(prevState => ({
         ...prevState,
-        activities: [newActivity, ...prevState.activities], // Keep this for now, will refactor later
+        nutritionEntries: newActivity.type === 'meal' ? [newActivity.data, ...prevState.nutritionEntries] : prevState.nutritionEntries,
+        workoutEntries: newActivity.type === 'workout' ? [newActivity.data, ...prevState.workoutEntries] : prevState.workoutEntries,
       }));
     }
   };
@@ -155,7 +160,19 @@ const App: React.FC = () => {
     <NavigationContainer>
       <Tab.Navigator>
         <Tab.Screen name="Dashboard">
-          {() => <DashboardScreen appState={appState} />}
+          {() => selectedDashboardConfig ? (
+            <DashboardScreen 
+              appState={appState} 
+              dashboardConfig={selectedDashboardConfig} 
+              onAddActivity={handleAddActivity}
+              onDeleteActivity={handleDeleteActivity}
+              onNaturalLanguageSubmit={handleNaturalLanguageSubmit}
+              onUpdateProfile={handleUpdateProfile}
+              fetchAITips={fetchAITips}
+            />
+          ) : (
+            <DashboardSelectionScreen profileId={appState.profile.id!} onSelectDashboard={setSelectedDashboardConfig} />
+          )}
         </Tab.Screen>
         <Tab.Screen name="Log">
           {() => <LogScreen appState={appState} onAddActivity={handleAddActivity} onDeleteActivity={handleDeleteActivity} onNaturalLanguageSubmit={handleNaturalLanguageSubmit} />}
