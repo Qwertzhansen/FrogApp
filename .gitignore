@@ -1,0 +1,12 @@
+# Dependencies
+/FrogTrackNative/node_modules
+/server/node_modules
+
+# Build folders
+/FrogTrackNative/android/build
+/FrogTrackNative/ios/build
+/server/dist
+
+# Other
+.DS_Store
+*.log
