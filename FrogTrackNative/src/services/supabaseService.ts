@@ -155,3 +155,56 @@ export const getDashboardConfigs = async (profileId: string): Promise<any[]> => 
     }
     return data;
 };
+
+export const ensureDefaultDashboards = async (profileId: string) => {
+    const { data: existingConfigs, error: fetchError } = await supabase
+        .from('dashboard_configs')
+        .select('id')
+        .eq('profile_id', profileId);
+
+    if (fetchError) {
+        console.error('Error checking existing dashboard configs:', fetchError);
+        return;
+    }
+
+    if (existingConfigs && existingConfigs.length === 0) {
+        const defaultDashboards = [
+            {
+                profile_id: profileId,
+                name: 'Overview',
+                is_default: true,
+                config_data: { components: ['Dashboard', 'WeeklyProgress', 'AITips'] },
+                order_index: 1,
+            },
+            {
+                profile_id: profileId,
+                name: 'Log & Feeds',
+                is_default: true,
+                config_data: { components: ['LogEntryForm', 'ActivityFeedWorkouts', 'ActivityFeedNutrition'] },
+                order_index: 2,
+            },
+            {
+                profile_id: profileId,
+                name: 'Community',
+                is_default: true,
+                config_data: { components: ['Community'] },
+                order_index: 3,
+            },
+            {
+                profile_id: profileId,
+                name: 'My Profile',
+                is_default: true,
+                config_data: { components: ['ProfileCard'] },
+                order_index: 4,
+            },
+        ];
+
+        const { error: insertError } = await supabase
+            .from('dashboard_configs')
+            .insert(defaultDashboards);
+
+        if (insertError) {
+            console.error('Error inserting default dashboards:', insertError);
+        }
+    }
+};

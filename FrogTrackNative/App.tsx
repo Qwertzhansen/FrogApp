@@ -45,6 +45,7 @@ const App: React.FC = () => {
 
       if (profile) {
         setAppState(prevState => ({ ...prevState, profile, nutritionEntries, workoutEntries }));
+        await ensureDefaultDashboards(profile.id!); // Ensure default dashboards are set up
       } else {
         setAppState(prevState => ({ ...prevState, nutritionEntries, workoutEntries }));
       }
