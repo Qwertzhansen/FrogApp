@@ -1,15 +1,15 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
-import { SafeAreaView, StyleSheet, Text, View, StatusBar, ScrollView } from 'react-native';
-import Dashboard from './src/components/Dashboard';
-import LogEntryForm from './src/components/LogEntryForm';
-import ActivityFeed from './src/components/ActivityFeed';
-import AITips from './src/components/AITips';
-import ProfileCard from './src/components/Profile';
-import Community from './src/components/Community';
-import WeeklyProgress from './src/components/WeeklyProgress';
-import FoodScanner from './src/components/FoodScanner';
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import DashboardScreen from './src/screens/DashboardScreen';
+import LogScreen from './src/screens/LogScreen';
+import CommunityScreen from './src/screens/CommunityScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
 import { LogEntry, Activity, Meal, Workout, AppState, Profile } from './src/types';
 import { parseNaturalLanguageLog, generatePersonalizedTips } from './src/services/geminiService';
+
+const Tab = createBottomTabNavigator();
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>({
@@ -25,15 +25,9 @@ const App: React.FC = () => {
         bmrMode: 'calculated',
         manualBmr: 2000
     },
-    activities: [
-        { type: 'workout', data: { name: 'Morning Run', duration: 30, distance: 5, calories: 350 }, timestamp: new Date('2024-07-29T08:00:00') },
-        { type: 'meal', data: { name: 'Breakfast', calories: 450, protein: 30, carbs: 50, fat: 15 }, timestamp: new Date('2024-07-29T09:00:00') },
-    ],
-    friends: [
-      { name: 'Mike Johnson', avatar: '👨‍🦳', lastActivity: 'Logged a new deadlift PR: 180kg!', weeklyScore: 1500 },
-      { name: 'Jane Smith', avatar: '👩‍🦰', lastActivity: 'Completed a 45-min HIIT session.', weeklyScore: 1250},
-    ],
-    aiTips: 'Remember to stay hydrated throughout the day and aim for 8 hours of sleep to maximize recovery.',
+    activities: [],
+    friends: [],
+    aiTips: '',
     isLoadingAI: false,
     error: null
   });
@@ -128,79 +122,24 @@ const App: React.FC = () => {
     }
   }, [appState.activities, appState.profile]);
 
-  useEffect(() => {
-    if (appState.activities.length > 4 && appState.activities.length % 2 === 1) {
-        fetchAITips();
-    }
-  }, [appState.activities.length, fetchAITips]);
-
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-      <View style={styles.header}>
-        <Text style={styles.title}>FrogTrack AI</Text>
-      </View>
-      <ScrollView style={styles.content}>
-        <Dashboard activities={appState.activities} profile={appState.profile} />
-        <LogEntryForm 
-          onAddActivity={handleAddActivity} 
-          onNaturalLanguageSubmit={handleNaturalLanguageSubmit} 
-          isLoading={appState.isLoadingAI}
-          onOpenScanner={() => {}}
-        />
-        <WeeklyProgress activities={appState.activities} profile={appState.profile} />
-        <ActivityFeed 
-          activities={appState.activities.filter(a => a.type === 'workout')} 
-          onDeleteActivity={handleDeleteActivity}
-          emptyMessage="No workouts logged yet."
-        />
-        <ActivityFeed 
-          activities={appState.activities.filter(a => a.type === 'meal')} 
-          onDeleteActivity={handleDeleteActivity}
-          emptyMessage="No meals logged yet."
-        />
-        <ProfileCard profile={appState.profile} onUpdateProfile={handleUpdateProfile} />
-        <AITips tips={appState.aiTips} isLoading={appState.isLoadingAI} onRefresh={fetchAITips} />
-        <Community friends={appState.friends} />
-        {appState.error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{appState.error}</Text>
-          </View>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+    <NavigationContainer>
+      <Tab.Navigator>
+        <Tab.Screen name="Dashboard">
+          {() => <DashboardScreen appState={appState} />}
+        </Tab.Screen>
+        <Tab.Screen name="Log">
+          {() => <LogScreen appState={appState} onAddActivity={handleAddActivity} onDeleteActivity={handleDeleteActivity} onNaturalLanguageSubmit={handleNaturalLanguageSubmit} />}
+        </Tab.Screen>
+        <Tab.Screen name="Community">
+          {() => <CommunityScreen appState={appState} />}
+        </Tab.Screen>
+        <Tab.Screen name="Profile">
+          {() => <ProfileScreen appState={appState} onUpdateProfile={handleUpdateProfile} fetchAITips={fetchAITips} />}
+        </Tab.Screen>
+      </Tab.Navigator>
+    </NavigationContainer>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f0f0f0',
-  },
-  header: {
-    padding: 20,
-    backgroundColor: '#16a34a', // Green background
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    color: '#fff', // White text
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-  },
-  errorContainer: {
-    backgroundColor: '#fecaca',
-    padding: 16,
-    borderRadius: 8,
-    marginVertical: 16,
-  },
-  errorText: {
-    color: '#b91c1c',
-    textAlign: 'center',
-  },
-});
 
 export default App;
