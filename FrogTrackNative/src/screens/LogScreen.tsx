@@ -5,10 +5,12 @@ import LogEntryForm from '../components/LogEntryForm';
 import ActivityFeed from '../components/ActivityFeed';
 import { AppState, Activity } from '../types';
 
+import { AppState, Activity, NutritionEntry, WorkoutEntry } from '../types';
+
 interface LogScreenProps {
   appState: AppState;
   onAddActivity: (activity: Activity) => void;
-  onDeleteActivity: (timestamp: Date) => void;
+  onDeleteActivity: (id: number, type: 'meal' | 'workout') => void;
   onNaturalLanguageSubmit: (text: string) => void;
 }
 
@@ -24,16 +26,16 @@ const LogScreen: React.FC<LogScreenProps> = ({ appState, onAddActivity, onDelete
       <View style={styles.feedContainer}>
         <Text style={styles.feedTitle}>Workout Feed</Text>
         <ActivityFeed 
-          activities={appState.activities.filter(a => a.type === 'workout')} 
-          onDeleteActivity={onDeleteActivity}
+          activities={appState.workoutEntries.map(entry => ({ type: 'workout', data: entry, timestamp: new Date(entry.created_at!) }))} 
+          onDeleteActivity={(logEntry) => onDeleteActivity(logEntry.data.id!, 'workout')}
           emptyMessage="No workouts logged yet."
         />
       </View>
       <View style={styles.feedContainer}>
         <Text style={styles.feedTitle}>Nutrition Feed</Text>
         <ActivityFeed 
-          activities={appState.activities.filter(a => a.type === 'meal')} 
-          onDeleteActivity={onDeleteActivity}
+          activities={appState.nutritionEntries.map(entry => ({ type: 'meal', data: entry, timestamp: new Date(entry.created_at!) }))} 
+          onDeleteActivity={(logEntry) => onDeleteActivity(logEntry.data.id!, 'meal')}
           emptyMessage="No meals logged yet."
         />
       </View>

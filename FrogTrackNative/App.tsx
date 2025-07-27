@@ -14,6 +14,8 @@ const Tab = createBottomTabNavigator();
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>({
     profile: {
+        email: '',
+        username: '',
         name: 'Alex Doe',
         age: 30,
         height: 175,
@@ -25,7 +27,8 @@ const App: React.FC = () => {
         bmrMode: 'calculated',
         manualBmr: 2000
     },
-    activities: [],
+    nutritionEntries: [],
+    workoutEntries: [],
     friends: [],
     aiTips: '',
     isLoadingAI: false,
@@ -35,34 +38,53 @@ const App: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       const profile = await getProfile();
-      const activities = await getActivities();
+      const activities = await getActivities(); // This now returns combined LogEntry[]
+
+      const nutritionEntries = activities.filter(a => a.type === 'meal') as NutritionEntry[];
+      const workoutEntries = activities.filter(a => a.type === 'workout') as WorkoutEntry[];
+
       if (profile) {
-        setAppState(prevState => ({ ...prevState, profile }));
+        setAppState(prevState => ({ ...prevState, profile, nutritionEntries, workoutEntries }));
+      } else {
+        setAppState(prevState => ({ ...prevState, nutritionEntries, workoutEntries }));
       }
-      setAppState(prevState => ({ ...prevState, activities }));
     };
     fetchData();
   }, []);
 
   const handleAddActivity = async (activity: Activity) => {
-    const newActivity = await addActivity(activity);
+    if (!appState.profile.id) {
+      console.error("Profile ID is missing. Cannot add activity.");
+      return;
+    }
+    const newActivity = await addActivity(activity, appState.profile.id);
     if (newActivity) {
-      setAppState(prevState => ({ ...prevState, activities: [newActivity, ...prevState.activities] }));
+      setAppState(prevState => ({
+        ...prevState,
+        activities: [newActivity, ...prevState.activities], // Keep this for now, will refactor later
+      }));
     }
   };
 
-  const handleDeleteActivity = (timestamp: Date) => {
-    setAppState(prevState => ({
-      ...prevState,
-      activities: prevState.activities.filter(a => a.timestamp.getTime() !== timestamp.getTime()),
-    }));
+  const handleDeleteActivity = async (id: number, type: 'meal' | 'workout') => {
+    try {
+      if (type === 'meal') {
+        await supabase.from('nutrition').delete().eq('id', id);
+        setAppState(prevState => ({ ...prevState, nutritionEntries: prevState.nutritionEntries.filter(entry => entry.id !== id) }));
+      } else if (type === 'workout') {
+        await supabase.from('workouts').delete().eq('id', id);
+        setAppState(prevState => ({ ...prevState, workoutEntries: prevState.workoutEntries.filter(entry => entry.id !== id) }));
+      }
+    } catch (error) {
+      console.error("Failed to delete activity:", error);
+    }
   };
 
-  const handleUpdateProfile = (profile: Profile) => {
-    setAppState(prevState => ({
-      ...prevState,
-      profile,
-    }));
+  const handleUpdateProfile = async (profile: Profile) => {
+    const updatedProfile = await updateProfile(profile);
+    if (updatedProfile) {
+      setAppState(prevState => ({ ...prevState, profile: updatedProfile }));
+    }
   };
 
   const handleNaturalLanguageSubmit = async (text: string) => {
@@ -70,22 +92,28 @@ const App: React.FC = () => {
     try {
       const parsedData = await parseNaturalLanguageLog(text, appState.profile);
       
-      const newEntries: LogEntry[] = [];
-      if (parsedData.workouts) {
-        parsedData.workouts.forEach((workout: Workout) => {
-          newEntries.push({ type: 'workout', data: workout, timestamp: new Date() });
-        });
+      if(parsedData.workouts) {
+        for (const workout of parsedData.workouts) {
+          const newEntry = await addActivity({ type: 'workout', data: workout }, appState.profile.id!); // Pass profile.id
+          if (newEntry) {
+            newEntries.push(newEntry);
+          }
+        }
       }
       if (parsedData.meals) {
-        parsedData.meals.forEach((meal: Meal) => {
-          newEntries.push({ type: 'meal', data: meal, timestamp: new Date() });
-        });
+        for (const meal of parsedData.meals) {
+          const newEntry = await addActivity({ type: 'meal', data: meal }, appState.profile.id!); // Pass profile.id
+          if (newEntry) {
+            newEntries.push(newEntry);
+          }
+        }
       }
 
       if(newEntries.length > 0) {
         setAppState(prevState => ({
           ...prevState,
-          activities: [...newEntries.reverse(), ...prevState.activities],
+          nutritionEntries: [...newEntries.filter(e => e.type === 'meal') as NutritionEntry[], ...prevState.nutritionEntries],
+          workoutEntries: [...newEntries.filter(e => e.type === 'workout') as WorkoutEntry[], ...prevState.workoutEntries],
           isLoadingAI: false,
         }));
       } else {
@@ -99,16 +127,28 @@ const App: React.FC = () => {
   };
 
   const fetchAITips = useCallback(async () => {
-    if (appState.activities.length === 0) return;
+    const allActivities: LogEntry[] = [
+      ...appState.nutritionEntries.map(entry => ({ type: 'meal', data: entry, timestamp: new Date(entry.created_at!) })),
+      ...appState.workoutEntries.map(entry => ({ type: 'workout', data: entry, timestamp: new Date(entry.created_at!) })),
+    ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+    if (allActivities.length === 0) return;
     setAppState(prevState => ({ ...prevState, isLoadingAI: true, error: null }));
     try {
-      const tips = await generatePersonalizedTips(appState.activities.slice(0, 10), appState.profile);
+      const tips = await generatePersonalizedTips(allActivities.slice(0, 10), appState.profile);
       setAppState(prevState => ({ ...prevState, aiTips: tips, isLoadingAI: false }));
     } catch (error) {
       console.error("Error generating AI tips:", error);
       setAppState(prevState => ({ ...prevState, isLoadingAI: false, error: 'Could not fetch AI tips. Please try again later.' }));
     }
-  }, [appState.activities, appState.profile]);
+  }, [appState.nutritionEntries, appState.workoutEntries, appState.profile]);
+
+  useEffect(() => {
+    const allActivitiesLength = appState.nutritionEntries.length + appState.workoutEntries.length;
+    if (allActivitiesLength > 4 && allActivitiesLength % 2 === 1) {
+        fetchAITips();
+    }
+  }, [appState.nutritionEntries.length, appState.workoutEntries.length, fetchAITips]);
 
   return (
     <NavigationContainer>

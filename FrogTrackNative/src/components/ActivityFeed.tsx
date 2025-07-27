@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
-import { LogEntry, Meal, Workout, Exercise } from '../types';
+import { LogEntry, Meal, Workout, Exercise, NutritionEntry, WorkoutEntry } from '../types';
 
 const ExerciseDetail: React.FC<{ exercise: Exercise }> = ({ exercise }) => (
   <View style={styles.exerciseDetail}>
@@ -14,12 +13,12 @@ const ExerciseDetail: React.FC<{ exercise: Exercise }> = ({ exercise }) => (
 
 interface ActivityCardProps {
     log: LogEntry;
-    onDelete: () => void;
+    onDelete: (logEntry: LogEntry) => void;
 }
 
 const ActivityCard: React.FC<ActivityCardProps> = ({ log, onDelete }) => {
   const isMeal = log.type === 'meal';
-  const data = log.data as (Meal | Workout);
+  const data = log.data as (NutritionEntry | WorkoutEntry);
 
   return (
     <View style={styles.cardContainer}>
@@ -28,27 +27,27 @@ const ActivityCard: React.FC<ActivityCardProps> = ({ log, onDelete }) => {
         
         {isMeal ? (
           <View style={styles.detailsRow}>
-            <Text style={styles.detailText}>🔥 {(data as Meal).calories} kcal</Text>
-            {(data as Meal).protein !== undefined && <Text style={styles.detailText}>P: {(data as Meal).protein}g</Text>}
-            {(data as Meal).carbs !== undefined && <Text style={styles.detailText}>C: {(data as Meal).carbs}g</Text>}
-            {(data as Meal).fat !== undefined && <Text style={styles.detailText}>F: {(data as Meal).fat}g</Text>}
+            <Text style={styles.detailText}>🔥 {(data as NutritionEntry).calories} kcal</Text>
+            {(data as NutritionEntry).protein !== undefined && <Text style={styles.detailText}>P: {(data as NutritionEntry).protein}g</Text>}
+            {(data as NutritionEntry).carbs !== undefined && <Text style={styles.detailText}>C: {(data as NutritionEntry).carbs}g</Text>}
+            {(data as NutritionEntry).fat !== undefined && <Text style={styles.detailText}>F: {(data as NutritionEntry).fat}g</Text>}
           </View>
         ) : (
           <View>
              <View style={styles.detailsRow}>
-                {(data as Workout).duration && <Text style={styles.detailText}>🕒 {(data as Workout).duration} min</Text>}
-                {(data as Workout).distance && <Text style={styles.detailText}>📏 {(data as Workout).distance} km</Text>}
-                {(data as Workout).calories && <Text style={styles.detailText}>🔥 {(data as Workout).calories} kcal</Text>}
+                {(data as WorkoutEntry).duration && <Text style={styles.detailText}>🕒 {(data as WorkoutEntry).duration} min</Text>}
+                {(data as WorkoutEntry).distance && <Text style={styles.detailText}>📏 {(data as WorkoutEntry).distance} km</Text>}
+                {(data as WorkoutEntry).calories && <Text style={styles.detailText}>🔥 {(data as WorkoutEntry).calories} kcal</Text>}
              </View>
-             {(data as Workout).exercises && (
+             {(data as WorkoutEntry).exercises && (
                 <View style={styles.exercisesContainer}>
-                    {(data as Workout).exercises.map((ex, index) => <ExerciseDetail key={index} exercise={ex} />)}
+                    {(data as WorkoutEntry).exercises.map((ex, index) => <ExerciseDetail key={index} exercise={ex} />)}
                 </View>
              )}
           </View>
         )}
       </View>
-      <TouchableOpacity onPress={onDelete} style={styles.deleteButton}>
+      <TouchableOpacity onPress={() => onDelete(log)} style={styles.deleteButton}>
         <Text style={styles.deleteButtonText}>X</Text>
       </TouchableOpacity>
     </View>
@@ -57,7 +56,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({ log, onDelete }) => {
 
 interface ActivityFeedProps {
   activities: LogEntry[];
-  onDeleteActivity: (timestamp: Date) => void;
+  onDeleteActivity: (logEntry: LogEntry) => void;
   emptyMessage?: string;
 }
 
@@ -68,10 +67,10 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities, onDeleteActivit
       renderItem={({ item }) => (
         <ActivityCard 
             log={item} 
-            onDelete={() => onDeleteActivity(item.timestamp)}
+            onDelete={onDeleteActivity}
         />
       )}
-      keyExtractor={(item, index) => `${item.timestamp.toISOString()}-${index}`}
+      keyExtractor={(item) => `${item.type}-${item.data.id}`}
       ListEmptyComponent={() => (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>{emptyMessage || "No activities logged yet."}</Text>

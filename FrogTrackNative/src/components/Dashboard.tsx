@@ -1,57 +1,49 @@
 
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { LogEntry, MacroNutrients, Workout, Profile } from '../types';
-// We will create this component in the next step
+import { NutritionEntry, WorkoutEntry, MacroNutrients, Profile } from '../types';
 import SummaryTile from './SummaryTile'; 
 import { calculateTDEE } from '../utils/fitnessCalculations';
 
 interface DashboardProps {
-  activities: LogEntry[];
+  nutritionEntries: NutritionEntry[];
+  workoutEntries: WorkoutEntry[];
   profile: Profile;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ activities, profile }) => {
+const Dashboard: React.FC<DashboardProps> = ({ nutritionEntries, workoutEntries, profile }) => {
   const today = new Date().toDateString();
 
-  const todaysActivities = useMemo(() => 
-    activities.filter(a => a.timestamp.toDateString() === today),
-    [activities, today]
+  const todaysNutrition = useMemo(() => 
+    nutritionEntries.filter(e => new Date(e.created_at!).toDateString() === today),
+    [nutritionEntries, today]
+  );
+
+  const todaysWorkouts = useMemo(() => 
+    workoutEntries.filter(e => new Date(e.created_at!).toDateString() === today),
+    [workoutEntries, today]
   );
 
   const totalCalories = useMemo(() => {
-    return todaysActivities
-      .filter(a => a.type === 'meal')
-      .reduce((sum, activity) => {
-        const meal = activity.data as any; // Cast to access meal properties
-        return sum + (meal.calories || 0);
-      }, 0);
-  }, [todaysActivities]);
+    return todaysNutrition.reduce((sum, entry) => sum + (entry.calories || 0), 0);
+  }, [todaysNutrition]);
   
   const totalCaloriesBurned = useMemo((): number => {
-    return todaysActivities
-      .filter(a => a.type === 'workout')
-      .reduce((sum, activity) => {
-        const workout = activity.data as Workout;
-        return sum + (workout.calories || 0);
-      }, 0);
-  }, [todaysActivities]);
+    return todaysWorkouts.reduce((sum, entry) => sum + (entry.calories || 0), 0);
+  }, [todaysWorkouts]);
 
   const totalMacros = useMemo((): MacroNutrients => {
-    return todaysActivities
-      .filter(a => a.type === 'meal')
-      .reduce((macros, activity) => {
-        const meal = activity.data as any;
-        macros.protein += meal.protein || 0;
-        macros.carbs += meal.carbs || 0;
-        macros.fat += meal.fat || 0;
+    return todaysNutrition.reduce((macros, entry) => {
+        macros.protein += entry.protein || 0;
+        macros.carbs += entry.carbs || 0;
+        macros.fat += entry.fat || 0;
         return macros;
-      }, { protein: 0, carbs: 0, fat: 0 });
-  }, [todaysActivities]);
+    }, { protein: 0, carbs: 0, fat: 0 });
+  }, [todaysNutrition]);
 
   const workoutsCompleted = useMemo(() => {
-    return todaysActivities.filter(a => a.type === 'workout').length;
-  }, [todaysActivities]);
+    return todaysWorkouts.length;
+  }, [todaysWorkouts]);
 
   const calorieGoal = useMemo(() => calculateTDEE(profile), [profile]);
 

@@ -1,16 +1,17 @@
 
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import { LogEntry, Profile, Meal } from '../types';
+import { NutritionEntry, WorkoutEntry, Profile } from '../types';
 import { calculateTDEE } from '../utils/fitnessCalculations';
 import { BarChart } from 'react-native-chart-kit';
 
 interface WeeklyProgressProps {
-  activities: LogEntry[];
+  nutritionEntries: NutritionEntry[];
+  workoutEntries: WorkoutEntry[];
   profile: Profile;
 }
 
-const getPast7DaysData = (activities: LogEntry[]) => {
+const getPast7DaysData = (nutritionEntries: NutritionEntry[]) => {
     const data: { date: Date; caloriesConsumed: number }[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -19,15 +20,13 @@ const getPast7DaysData = (activities: LogEntry[]) => {
         const date = new Date(today);
         date.setDate(today.getDate() - i);
         
-        const dailyActivities = activities.filter(a => {
-            const activityDate = new Date(a.timestamp);
-            activityDate.setHours(0, 0, 0, 0);
-            return activityDate.getTime() === date.getTime();
+        const dailyNutrition = nutritionEntries.filter(e => {
+            const entryDate = new Date(e.created_at!);
+            entryDate.setHours(0, 0, 0, 0);
+            return entryDate.getTime() === date.getTime();
         });
         
-        const caloriesConsumed = dailyActivities
-            .filter(a => a.type === 'meal')
-            .reduce((sum, a) => sum + ((a.data as Meal).calories || 0), 0);
+        const caloriesConsumed = dailyNutrition.reduce((sum, entry) => sum + (entry.calories || 0), 0);
 
         data.push({
             date: date,
@@ -37,8 +36,8 @@ const getPast7DaysData = (activities: LogEntry[]) => {
     return data;
 };
 
-const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ activities, profile }) => {
-    const weeklyData = useMemo(() => getPast7DaysData(activities), [activities]);
+const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ nutritionEntries, workoutEntries, profile }) => {
+    const weeklyData = useMemo(() => getPast7DaysData(nutritionEntries), [nutritionEntries]);
     const tdee = useMemo(() => calculateTDEE(profile), [profile]);
     
     const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

@@ -12,8 +12,8 @@ interface DashboardScreenProps {
 const DashboardScreen: React.FC<DashboardScreenProps> = ({ appState }) => {
   return (
     <ScrollView style={styles.container}>
-      <Dashboard activities={appState.activities} profile={appState.profile} />
-      <WeeklyProgress activities={appState.activities} profile={appState.profile} />
+      <Dashboard nutritionEntries={appState.nutritionEntries} workoutEntries={appState.workoutEntries} profile={appState.profile} />
+      <WeeklyProgress nutritionEntries={appState.nutritionEntries} workoutEntries={appState.workoutEntries} profile={appState.profile} />
     </ScrollView>
   );
 };
