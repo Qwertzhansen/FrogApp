@@ -7,7 +7,7 @@ import LogScreen from './src/screens/LogScreen';
 import CommunityScreen from './src/screens/CommunityScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import { LogEntry, Activity, Meal, Workout, AppState, Profile } from './src/types';
-import { parseNaturalLanguageLog, generatePersonalizedTips } from './src/services/geminiService';
+import { getProfile, getActivities, addActivity } from './src/services/supabaseService';
 
 const Tab = createBottomTabNavigator();
 
@@ -34,32 +34,20 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      try {
-        const profileResponse = await fetch('http://localhost:3000/api/profile');
-        const profileData = await profileResponse.json();
-        const activitiesResponse = await fetch('http://localhost:3000/api/activities');
-        const activitiesData = await activitiesResponse.json();
-        setAppState(prevState => ({ ...prevState, profile: profileData, activities: activitiesData }));
-      } catch (error) {
-        console.error("Failed to fetch data from server:", error);
+      const profile = await getProfile();
+      const activities = await getActivities();
+      if (profile) {
+        setAppState(prevState => ({ ...prevState, profile }));
       }
+      setAppState(prevState => ({ ...prevState, activities }));
     };
     fetchData();
   }, []);
 
   const handleAddActivity = async (activity: Activity) => {
-    try {
-      const response = await fetch('http://localhost:3000/api/activities', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(activity),
-      });
-      const newActivity = await response.json();
-      setAppState(prevState => ({ ...prevState, activities: [newActivity.data, ...prevState.activities] }));
-    } catch (error) {
-      console.error("Failed to add activity:", error);
+    const newActivity = await addActivity(activity);
+    if (newActivity) {
+      setAppState(prevState => ({ ...prevState, activities: [newActivity, ...prevState.activities] }));
     }
   };
 
