@@ -1,9 +1,9 @@
-
 import React, { useState, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, Button, Image, TextInput, FlatList, TouchableOpacity, Modal } from 'react-native';
 import { Meal } from '../types';
 import { analyzeFoodImage } from '../services/geminiService';
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
+import RNFS from 'react-native-fs';
 
 interface FoodScannerProps {
   onClose: () => void;
@@ -14,7 +14,7 @@ type ScannerStep = 'camera' | 'preview' | 'loading' | 'results' | 'error';
 
 const FoodScanner: React.FC<FoodScannerProps> = ({ onClose, onAddMeals }) => {
     const [step, setStep] = useState<ScannerStep>('camera');
-    const [capturedImage, setCapturedImage] = useState<string | null>(null);
+    const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
     const [userHint, setUserHint] = useState('');
     const [editableMeals, setEditableMeals] = useState<Meal[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -25,24 +25,23 @@ const FoodScanner: React.FC<FoodScannerProps> = ({ onClose, onAddMeals }) => {
     const handleCapture = async () => {
         if (camera.current) {
             const photo = await camera.current.takePhoto();
-            setCapturedImage(photo.path);
+            setCapturedImageUri(photo.path);
             setStep('preview');
         }
     };
 
     const handleRetake = () => {
-        setCapturedImage(null);
+        setCapturedImageUri(null);
         setStep('camera');
     };
 
     const handleAnalyze = async () => {
-        if (!capturedImage) return;
+        if (!capturedImageUri) return;
         setStep('loading');
         setError(null);
         try {
-            // In a real app, you would read the file from the path and convert it to base64
-            // For now, we'll just simulate the call with a placeholder
-            const result = await analyzeFoodImage("", userHint);
+            const base64Data = await RNFS.readFile(capturedImageUri, 'base64');
+            const result = await analyzeFoodImage(base64Data, userHint);
             if (result.meals && result.meals.length > 0) {
                 setEditableMeals(result.meals);
                 setStep('results');
@@ -70,7 +69,7 @@ const FoodScanner: React.FC<FoodScannerProps> = ({ onClose, onAddMeals }) => {
                 );
             case 'preview': return (
                 <View style={styles.fullScreen}>
-                    {capturedImage && <Image source={{ uri: `file://${capturedImage}` }} style={styles.previewImage} />}
+                    {capturedImageUri && <Image source={{ uri: `file://${capturedImageUri}` }} style={styles.previewImage} />}
                     <TextInput value={userHint} onChangeText={setUserHint} placeholder="Add details..." style={styles.hintInput} />
                     <Button title="Retake" onPress={handleRetake} />
                     <Button title="Analyze" onPress={handleAnalyze} />

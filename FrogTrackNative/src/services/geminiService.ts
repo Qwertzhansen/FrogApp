@@ -1,7 +1,8 @@
 import { LogEntry, ParsedLog, Profile, Meal } from '../types';
 import { calculateTDEE } from "../utils/fitnessCalculations";
 
-const API_URL = 'http://localhost:3000/api';
+// Replace with your Supabase Edge Functions URL
+const SUPABASE_EDGE_FUNCTIONS_URL = 'https://ugmgculhvzfzynpcxxdc.supabase.co/functions/v1';
 
 export const parseNaturalLanguageLog = async (text: string, profile: Profile): Promise<ParsedLog> => {
     let userContext = "";
@@ -13,7 +14,7 @@ export const parseNaturalLanguageLog = async (text: string, profile: Profile): P
     const prompt = `Parse the following user-provided text to identify and structure workout and meal information. For workouts, you MUST estimate the total calories burned based on the activity type, duration, and any other relevant details. For meals, parse nutritional information. Infer quantities and types where possible. For example, "30 min HIIT" is a workout. "3 scrambled eggs and 200g rice" is a meal.${userContext}\n\nTEXT: "${text}"`;
 
     try {
-        const response = await fetch(`${API_URL}/analyze-text`, {
+        const response = await fetch(`${SUPABASE_EDGE_FUNCTIONS_URL}/analyze-text`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -29,8 +30,20 @@ export const parseNaturalLanguageLog = async (text: string, profile: Profile): P
 };
 
 export const analyzeFoodImage = async (base64ImageData: string, userHint: string): Promise<ParsedLog> => {
-    // This will be implemented later, as it requires file system access to read the image
-    return Promise.resolve({ meals: [] });
+    try {
+        const response = await fetch(`${SUPABASE_EDGE_FUNCTIONS_URL}/analyze-image`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ imageData: base64ImageData, userHint }),
+        });
+        const data = await response.json();
+        return JSON.parse(data.text) as ParsedLog;
+    } catch (error) {
+        console.error("Error analyzing food image:", error);
+        throw new Error("Failed to communicate with the AI service for image analysis.");
+    }
 };
 
 export const generatePersonalizedTips = async (activities: LogEntry[], profile: Profile): Promise<string> => {
@@ -70,7 +83,7 @@ export const generatePersonalizedTips = async (activities: LogEntry[], profile: 
     `;
 
     try {
-        const response = await fetch(`${API_URL}/get-tips`, {
+        const response = await fetch(`${SUPABASE_EDGE_FUNCTIONS_URL}/get-tips`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
